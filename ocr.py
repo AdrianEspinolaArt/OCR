@@ -13,3 +13,5 @@ pytesseract.pytesseract.tesseract_cmd = caminho + r'\tesseract.exe'
 texto = pytesseract.image_to_string(imagem, lang="por") #
 
 print(texto)
+
+
