@@ -29,17 +29,20 @@ class OCRApp:
         self.perfil_menu = tk.OptionMenu(self.perfil_frame, self.perfil_var, *self.perfil_options)
         self.perfil_menu.grid(row=0, column=1, padx=5)
 
-        # Criar um frame para a imagem
-        self.imagem_frame = tk.Frame(self.master)
-        self.imagem_frame.pack()
+        # Criar um frame para a imagem com borda e tamanho fixo
+        self.imagem_frame = tk.Frame(self.master, width=600, height=400, relief="solid", borderwidth=2)
+        self.imagem_frame.pack(pady=10)
 
-        # Criar um label para exibir a imagem
+        # Criar um label para exibir a imagem dentro do frame
         self.imagem_label = tk.Label(self.imagem_frame)
-        self.imagem_label.pack()
+        self.imagem_label.pack(fill="both", expand=True)
+
+        # Carregar uma imagem padrão para exibir no frame
+        self.carregar_imagem_padrao()
 
         # Criar um botão para selecionar arquivo
         self.selecionar_button = tk.Button(self.master, text="Selecionar Arquivo", command=self.carregar_imagem, bg="#0068FA", fg="white", font=("Arial", 12) )
-        self.selecionar_button.pack(side="left", padx=10)
+        self.selecionar_button.pack(side="left", padx=30)
 
         # Criar um botão para realizar o OCR
         self.ocr_button = tk.Button(self.master, text="Realizar OCR", command=self.realizar_ocr, bg="green", fg="white", font=("Arial", 12) )
@@ -48,6 +51,14 @@ class OCRApp:
         # Criar um widget para exibir o resultado do OCR
         self.resultado_texto = tk.Text(self.master, height=10, width=50, state="disabled")
         self.resultado_texto.pack()
+
+    def carregar_imagem_padrao(self):
+        # Carregar uma imagem padrão para exibir no frame
+        imagem_padrao = Image.open("default_image.png")  # Substitua "default_image.jpg" com o caminho da sua imagem padrão
+        imagem_padrao = imagem_padrao.resize((600, 400), Image.BICUBIC)
+        imagem_padrao_tk = ImageTk.PhotoImage(imagem_padrao)
+        self.imagem_label.config(image=imagem_padrao_tk)
+        self.imagem_label.image = imagem_padrao_tk
 
     def carregar_imagem(self):
         self.imagem_path = filedialog.askopenfilename(title="Selecionar Imagem", filetypes=[("Imagens", "*.jpg *.png")])
