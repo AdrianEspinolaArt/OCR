@@ -10,12 +10,24 @@ class OCRApp:
     def __init__(self, master):
         self.master = master
         self.master.title("OCR App")
-        self.master.geometry("800x600")
+        self.master.geometry("900x700")
 
         self.imagem_path = None
+        self.parametros_perfil = None
 
-        # Carregar os parâmetros do modelo CNH do arquivo XML
-        self.parametros_cnh = self.carregar_parametros_cnh("cnh_modelo.xml")
+        # Criar um frame para o seletor de perfil
+        self.perfil_frame = tk.Frame(self.master)
+        self.perfil_frame.pack(pady=10)
+
+        # Criar um rótulo e uma variável de controle para o seletor de perfil
+        self.perfil_label = tk.Label(self.perfil_frame, text="Selecione o perfil:")
+        self.perfil_label.grid(row=0, column=0, padx=5)
+
+        self.perfil_var = tk.StringVar()
+        self.perfil_var.set("CNH")  # Perfil padrão
+        self.perfil_options = ["CNH", "Identidade"]
+        self.perfil_menu = tk.OptionMenu(self.perfil_frame, self.perfil_var, *self.perfil_options)
+        self.perfil_menu.grid(row=0, column=1, padx=5)
 
         # Criar um frame para a imagem
         self.imagem_frame = tk.Frame(self.master)
@@ -26,11 +38,11 @@ class OCRApp:
         self.imagem_label.pack()
 
         # Criar um botão para selecionar arquivo
-        self.selecionar_button = tk.Button(self.master, text="Selecionar Arquivo", command=self.carregar_imagem)
+        self.selecionar_button = tk.Button(self.master, text="Selecionar Arquivo", command=self.carregar_imagem, bg="#0068FA", fg="white", font=("Arial", 12) )
         self.selecionar_button.pack(side="left", padx=10)
 
         # Criar um botão para realizar o OCR
-        self.ocr_button = tk.Button(self.master, text="Realizar OCR", command=self.realizar_ocr)
+        self.ocr_button = tk.Button(self.master, text="Realizar OCR", command=self.realizar_ocr, bg="green", fg="white", font=("Arial", 12) )
         self.ocr_button.pack(side="left")
 
         # Criar um widget para exibir o resultado do OCR
@@ -47,8 +59,8 @@ class OCRApp:
             self.imagem_label.config(image=imagem_tk)
             self.imagem_label.image = imagem_tk
 
-    def carregar_parametros_cnh(self, arquivo_xml):
-        parametros_cnh = {}
+    def carregar_parametros_perfil(self, arquivo_xml):
+        parametros_perfil = {}
         tree = ET.parse(arquivo_xml)
         root = tree.getroot()
 
@@ -60,18 +72,27 @@ class OCRApp:
             xmax = int(bndbox.find("xmax").text)
             ymax = int(bndbox.find("ymax").text)
 
-            parametros_cnh[nome] = (xmin, ymin, xmax, ymax)
+            parametros_perfil[nome] = (xmin, ymin, xmax, ymax)
 
-        return parametros_cnh
+        return parametros_perfil
 
     def realizar_ocr(self):
         if not self.imagem_path:
             messagebox.showwarning("Aviso", "Por favor, selecione um arquivo de imagem primeiro.")
             return
 
+        if self.perfil_var.get() == "CNH":
+            arquivo_xml = "cnh_modelo.xml"
+        elif self.perfil_var.get() == "Identidade":
+            arquivo_xml = "modelo_identidade.xml"
+        else:
+            messagebox.showwarning("Aviso", "Perfil selecionado inválido.")
+            return
+
+        self.parametros_perfil = self.carregar_parametros_perfil(arquivo_xml)
+
         imagem = cv2.imread(self.imagem_path)
-        
-        # Verificar a qualidade da imagem
+
         if not self.detectar_bordas(imagem):
             messagebox.showwarning("Aviso", "Por favor, verifique as bordas da imagem do documento.")
             return
@@ -89,7 +110,7 @@ class OCRApp:
         pytesseract.pytesseract.tesseract_cmd = caminho_tesseract + r'\tesseract.exe'
 
         resultado = {}
-        for campo, parametros in self.parametros_cnh.items():
+        for campo, parametros in self.parametros_perfil.items():
             xmin, ymin, xmax, ymax = parametros
             # Extrair a região da imagem correspondente ao campo
             regiao_imagem = imagem[ymin:ymax, xmin:xmax]
@@ -122,15 +143,6 @@ class OCRApp:
         altura, largura = imagem.shape[:2]
         resolucao_minima = 1000
         return altura >= resolucao_minima and largura >= resolucao_minima
-
-    def extrair_dados(self, imagem):
-        resultado = {}
-        for campo, parametros in self.parametros_cnh.items():
-            xmin, ymin, xmax, ymax = parametros
-            regiao_imagem = imagem[ymin:ymax, xmin:xmax]  # Limitar a busca à região delimitada pelo campo
-            texto = pytesseract.image_to_string(regiao_imagem, lang="por")
-            resultado[campo] = texto.strip() if texto else "Não encontrado"
-        return resultado
 
     def exibir_resultado(self, resultado):
         self.resultado_texto.config(state="normal")
