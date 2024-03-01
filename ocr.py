@@ -1,145 +1,149 @@
 import pytesseract
 import cv2
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from PIL import ImageTk, Image
-import tempfile
+import xml.etree.ElementTree as ET
 import re
 
-# Função para carregar a imagem selecionada
-def carregar_imagem():
-    # Abrir uma caixa de diálogo para selecionar a imagem
-    global imagem_path
-    imagem_path = filedialog.askopenfilename(title="Selecionar Imagem", filetypes=[("Imagens", "*.jpg *.png")])
+class OCRApp:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("OCR App")
+        self.master.geometry("800x600")
 
-    # Verificar se o usuário selecionou uma imagem
-    if imagem_path:
-        # Carregar a imagem usando PIL (Pillow)
-        imagem_pillow = Image.open(imagem_path)
+        self.imagem_path = None
 
-        # Redimensionar a imagem para caber na interface gráfica
-        imagem_pillow = imagem_pillow.resize((600, 400), Image.BICUBIC)
+        # Carregar os parâmetros do modelo CNH do arquivo XML
+        self.parametros_cnh = self.carregar_parametros_cnh("cnh_modelo.xml")
 
-        # Converter a imagem para o formato suportado pelo tkinter
-        imagem_tk = ImageTk.PhotoImage(imagem_pillow)
+        # Criar um frame para a imagem
+        self.imagem_frame = tk.Frame(self.master)
+        self.imagem_frame.pack()
 
-        # Exibir a imagem na interface gráfica
-        imagem_label.config(image=imagem_tk)
-        imagem_label.image = imagem_tk
+        # Criar um label para exibir a imagem
+        self.imagem_label = tk.Label(self.imagem_frame)
+        self.imagem_label.pack()
 
-# Função para realizar OCR no arquivo original selecionado
-        
-def detectar_bordas(imagem):
-    # Converter a imagem para tons de cinza
-    imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-    # Aplicar o detector de bordas Canny
-    bordas = cv2.Canny(imagem_cinza, 100, 200)
-    # Verificar se há bordas detectadas
-    if cv2.countNonZero(bordas) == 0:
-        return False  # Nenhuma borda detectada
-    else:
-        return True  # Bordas detectadas
-    
-def verificar_ocr_previo(imagem):
-    caminho_tesseract = r"C:\Users\adrian.espinola\AppData\Local\Programs\Tesseract-OCR"
-    pytesseract.pytesseract.tesseract_cmd = caminho_tesseract + r'\tesseract.exe'
-    # Realizar uma verificação preliminar de OCR na imagem
-    texto = pytesseract.image_to_string(imagem, lang="por")
-    # Verificar se o texto extraído é vazio
-    if not texto:
-        return False  # Nenhum texto extraído
-    else:
-        return True  # Texto extraído    
+        # Criar um botão para selecionar arquivo
+        self.selecionar_button = tk.Button(self.master, text="Selecionar Arquivo", command=self.carregar_imagem)
+        self.selecionar_button.pack(side="left", padx=10)
 
-def verificar_ruido(imagem):
-    # Aplicar filtro de redução de ruído Gaussiano
-    imagem_filtrada = cv2.GaussianBlur(imagem, (5, 5), 0)
-    # Calcular a diferença absoluta entre a imagem original e a filtrada
-    diferenca = cv2.absdiff(imagem, imagem_filtrada)
-    # Converter a imagem de diferença para tons de cinza
-    diferenca_cinza = cv2.cvtColor(diferenca, cv2.COLOR_BGR2GRAY)
-    # Calcular a média da diferença absoluta
-    media_diferenca = cv2.mean(diferenca_cinza)[0]
-    # Se a média for alta, pode indicar presença de ruído
-    if media_diferenca > 10:
-        return False  # Presença de ruído
-    else:
-        return True  # Sem ruído significativo 
-    
-def verificar_resolucao(imagem):
-    altura, largura = imagem.shape[:2]
-    # Definir uma resolução mínima desejada
-    resolucao_minima = 1000 # Exemplo de resolução mínima
-    # Verificar se a resolução atende ao mínimo desejado
-    if altura < resolucao_minima or largura < resolucao_minima:
-        return False  # Resolução muito baixa
-    else:
-        return True  # Resolução adequada       
+        # Criar um botão para realizar o OCR
+        self.ocr_button = tk.Button(self.master, text="Realizar OCR", command=self.realizar_ocr)
+        self.ocr_button.pack(side="left")
 
+        # Criar um widget para exibir o resultado do OCR
+        self.resultado_texto = tk.Text(self.master, height=10, width=50, state="disabled")
+        self.resultado_texto.pack()
 
+    def carregar_imagem(self):
+        self.imagem_path = filedialog.askopenfilename(title="Selecionar Imagem", filetypes=[("Imagens", "*.jpg *.png")])
 
-def realizar_ocr():
-    global imagem_path
-    # Verificar se um arquivo de imagem foi selecionado
-    if imagem_path:
-        # Carregar a imagem
-        imagem = cv2.imread(imagem_path)
+        if self.imagem_path:
+            imagem_pillow = Image.open(self.imagem_path)
+            imagem_pillow = imagem_pillow.resize((600, 400), Image.BICUBIC)
+            imagem_tk = ImageTk.PhotoImage(imagem_pillow)
+            self.imagem_label.config(image=imagem_tk)
+            self.imagem_label.image = imagem_tk
+
+    def carregar_parametros_cnh(self, arquivo_xml):
+        parametros_cnh = {}
+        tree = ET.parse(arquivo_xml)
+        root = tree.getroot()
+
+        for obj in root.findall("object"):
+            nome = obj.find("name").text
+            bndbox = obj.find("bndbox")
+            xmin = int(bndbox.find("xmin").text)
+            ymin = int(bndbox.find("ymin").text)
+            xmax = int(bndbox.find("xmax").text)
+            ymax = int(bndbox.find("ymax").text)
+
+            parametros_cnh[nome] = (xmin, ymin, xmax, ymax)
+
+        return parametros_cnh
+
+    def realizar_ocr(self):
+        if not self.imagem_path:
+            messagebox.showwarning("Aviso", "Por favor, selecione um arquivo de imagem primeiro.")
+            return
+
+        imagem = cv2.imread(self.imagem_path)
         
         # Verificar a qualidade da imagem
-        if not detectar_bordas(imagem):
-            tk.messagebox.showwarning("Aviso", "Por favor, verifique as bordas da imagem do documento.")
+        if not self.detectar_bordas(imagem):
+            messagebox.showwarning("Aviso", "Por favor, verifique as bordas da imagem do documento.")
             return
-        elif not verificar_ocr_previo(imagem):
-            tk.messagebox.showwarning("Aviso", "Não foi possível extrair texto da imagem do documento.")
+        elif not self.verificar_ocr_previo(imagem):
+            messagebox.showwarning("Aviso", "Não foi possível extrair texto da imagem do documento.")
             return
-        elif not verificar_ruido(imagem):
-            tk.messagebox.showwarning("Aviso", "Por favor, verifique o ruído na imagem do documento.")
+        elif not self.verificar_ruido(imagem):
+            messagebox.showwarning("Aviso", "Por favor, verifique o ruído na imagem do documento.")
             return
-        elif not verificar_resolucao(imagem):
-            tk.messagebox.showwarning("Aviso", "Por favor, verifique a resolução da imagem do documento.")
+        elif not self.verificar_resolucao(imagem):
+            messagebox.showwarning("Aviso", "Por favor, verifique a resolução da imagem do documento.")
             return
 
-        # Configurar o caminho do Tesseract
         caminho_tesseract = r"C:\Users\adrian.espinola\AppData\Local\Programs\Tesseract-OCR"
         pytesseract.pytesseract.tesseract_cmd = caminho_tesseract + r'\tesseract.exe'
 
-        # Realizar OCR no arquivo selecionado
-        texto = pytesseract.image_to_string(imagem_path, lang="por")
-        
-        # Exibir o texto extraído na interface gráfica
-        resultado_texto.config(state="normal")
-        resultado_texto.delete("1.0", tk.END)
-        resultado_texto.insert(tk.END, texto)
-        resultado_texto.config(state="disabled")
-    else:
-        # Exibir mensagem de aviso se nenhum arquivo foi selecionado
-        tk.messagebox.showwarning("Aviso", "Por favor, selecione um arquivo de imagem primeiro.")
+        resultado = {}
+        for campo, parametros in self.parametros_cnh.items():
+            xmin, ymin, xmax, ymax = parametros
+            # Extrair a região da imagem correspondente ao campo
+            regiao_imagem = imagem[ymin:ymax, xmin:xmax]
+            # Realizar OCR na região da imagem
+            texto = pytesseract.image_to_string(regiao_imagem, lang="por")
+            print(f"Texto detectado para '{campo}': {texto}")  # Printar texto detectado antes do processamento
+            resultado[campo] = texto.strip() if texto else "Não encontrado"
+
+        self.exibir_resultado(resultado)
+
+    def detectar_bordas(self, imagem):
+        imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+        bordas = cv2.Canny(imagem_cinza, 100, 200)
+        return cv2.countNonZero(bordas) != 0
+
+    def verificar_ocr_previo(self, imagem):
+        caminho_tesseract = r"C:\Users\adrian.espinola\AppData\Local\Programs\Tesseract-OCR"
+        pytesseract.pytesseract.tesseract_cmd = caminho_tesseract + r'\tesseract.exe'
+        texto = pytesseract.image_to_string(imagem, lang="por")
+        return bool(texto)
+
+    def verificar_ruido(self, imagem):
+        imagem_filtrada = cv2.GaussianBlur(imagem, (5, 5), 0)
+        diferenca = cv2.absdiff(imagem, imagem_filtrada)
+        diferenca_cinza = cv2.cvtColor(diferenca, cv2.COLOR_BGR2GRAY)
+        media_diferenca = cv2.mean(diferenca_cinza)[0]
+        return media_diferenca <= 10
+
+    def verificar_resolucao(self, imagem):
+        altura, largura = imagem.shape[:2]
+        resolucao_minima = 1000
+        return altura >= resolucao_minima and largura >= resolucao_minima
+
+    def extrair_dados(self, imagem):
+        resultado = {}
+        for campo, parametros in self.parametros_cnh.items():
+            xmin, ymin, xmax, ymax = parametros
+            regiao_imagem = imagem[ymin:ymax, xmin:xmax]  # Limitar a busca à região delimitada pelo campo
+            texto = pytesseract.image_to_string(regiao_imagem, lang="por")
+            resultado[campo] = texto.strip() if texto else "Não encontrado"
+        return resultado
+
+    def exibir_resultado(self, resultado):
+        self.resultado_texto.config(state="normal")
+        self.resultado_texto.delete("1.0", tk.END)
+        for campo, valor in resultado.items():
+            self.resultado_texto.insert(tk.END, f"{campo}: {valor}\n")
+        self.resultado_texto.config(state="disabled")
 
 
-# Criar a janela principal
-root = tk.Tk()
-root.title("OCR App")
-root.geometry("800x600")
+def main():
+    root = tk.Tk()
+    app = OCRApp(root)
+    root.mainloop()
 
-# Criar um frame para a imagem
-imagem_frame = tk.Frame(root)
-imagem_frame.pack()
-
-# Criar um label para exibir a imagem
-imagem_label = tk.Label(imagem_frame)
-imagem_label.pack()
-
-# Criar um botão para selecionar arquivo
-selecionar_button = tk.Button(root, text="Selecionar Arquivo", command=carregar_imagem)
-selecionar_button.pack(side="left", padx=10)
-
-# Criar um botão para realizar o OCR
-ocr_button = tk.Button(root, text="Realizar OCR", command=realizar_ocr)
-ocr_button.pack(side="left")
-
-# Criar um widget para exibir o resultado do OCR
-resultado_texto = tk.Text(root, height=10, width=50, state="disabled")
-resultado_texto.pack()
-
-# Iniciar o loop principal
-root.mainloop()
+if __name__ == "__main__":
+    main()
