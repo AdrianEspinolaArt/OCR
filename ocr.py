@@ -10,7 +10,7 @@ class OCRApp:
     def __init__(self, master):
         self.master = master
         self.master.title("OCR App")
-        self.master.geometry("900x700")
+        self.master.geometry("900x900")
 
         self.imagem_path = None
         self.parametros_perfil = None
@@ -55,7 +55,7 @@ class OCRApp:
     def carregar_imagem_padrao(self):
         # Carregar uma imagem padrão para exibir no frame
         imagem_padrao = Image.open("default_image.png")  # Substitua "default_image.jpg" com o caminho da sua imagem padrão
-        imagem_padrao = imagem_padrao.resize((600, 400), Image.BICUBIC)
+        imagem_padrao = imagem_padrao.resize((700, 600), Image.BICUBIC)
         imagem_padrao_tk = ImageTk.PhotoImage(imagem_padrao)
         self.imagem_label.config(image=imagem_padrao_tk)
         self.imagem_label.image = imagem_padrao_tk
@@ -65,7 +65,7 @@ class OCRApp:
 
         if self.imagem_path:
             imagem_pillow = Image.open(self.imagem_path)
-            imagem_pillow = imagem_pillow.resize((600, 400), Image.BICUBIC)
+            imagem_pillow = imagem_pillow.resize((700, 600), Image.BICUBIC)
             imagem_tk = ImageTk.PhotoImage(imagem_pillow)
             self.imagem_label.config(image=imagem_tk)
             self.imagem_label.image = imagem_tk
